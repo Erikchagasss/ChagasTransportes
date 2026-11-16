@@ -6,6 +6,32 @@ no Supabase — ver `schema_fretado.sql`).
 
 ## Setup
 
+### Área do motorista e viagens do dia (migração v11)
+
+Execute `migration_v11.sql` antes de publicar. A área do motorista tem
+apenas **Corridas do dia**, **Minhas rotas** e **Sair**. O cadastro global
+de funcionárias e a inclusão/remoção/ordenação de passageiras nas rotas
+ficam exclusivamente no admin. As permissões antigas da v7 são revogadas;
+o antigo endereço `/driver/employees` redireciona para as viagens do dia.
+Nas viagens o motorista continua vendo as próprias passageiras e registrando
+chegada, embarque, entrega, ausência, alteração de local e observações.
+
+Ao abrir a página do dia, `ensure_daily_trips` prepara as viagens do
+motorista autenticado, usando a data de Brasília, os dias da rota e a
+escala de cada passageira. Cron e botão do admin usam a mesma função.
+A geração é atômica, usa bloqueio por rota/dia e não duplica registros.
+Corridas ainda planejadas que ficaram sem paradas são reparadas sem
+reescrever tickets existentes. Viagens iniciadas/concluídas/canceladas
+não são recriadas. Rotas sem passageiras escaladas não geram viagem vazia.
+
+O motorista não escolhe outro motorista nem uma data arbitrária para
+geração, não cria corridas avulsas diretamente e só lê cadastros vinculados
+às próprias rotas/viagens. Falhas de geração ou consulta aparecem como erro,
+nunca como confirmação de que não há viagens. Contas admin abrem `/admin`;
+para testar a experiência do motorista é necessário entrar com a conta dele.
+
+Validação de banco (com reversão): `scripts/check-driver-access.sql`.
+
 ### Precisão dos pontos (migração v10)
 
 Execute `migration_v10.sql` antes de publicar esta versão. Coordenadas

@@ -12,14 +12,17 @@ export default async function DriverLayout({ children }: { children: React.React
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name")
+    .select("full_name,role")
     .eq("id", user.id)
     .single();
+
+  if(profile?.role !== "driver") redirect(profile?.role === "admin" ? "/admin" : "/login");
 
   const todayLabel = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
     day: "2-digit",
     month: "long",
+    timeZone: "America/Sao_Paulo",
   });
 
   return (
@@ -34,7 +37,7 @@ export default async function DriverLayout({ children }: { children: React.React
         </div>
         <p className="mt-2 text-xs capitalize text-white/60">{todayLabel}</p>
       </header>
-      <nav className="flex gap-4 border-b px-4 py-3 text-sm"><a href="/driver">Corridas do dia</a><a href="/driver/employees">Funcionárias</a><a href="/driver/routes">Minhas rotas</a></nav><main>{children}</main>
+      <nav className="flex gap-4 border-b px-4 py-3 text-sm"><a href="/driver">Corridas do dia</a><a href="/driver/routes">Minhas rotas</a></nav><main>{children}</main>
     </div>
   );
 }
