@@ -6,6 +6,38 @@ no Supabase — ver `schema_fretado.sql`).
 
 ## Setup
 
+### Agenda por entrada/saída e turnos noturnos (migração v12)
+
+Execute `migration_v12.sql` antes de publicar. As viagens são separadas
+por rota, data de operação, sentido e horário previsto. Uma rota com
+saídas às 16h e 18h passa a ter duas viagens de volta, sem colocar as
+passageiras do segundo horário no embarque das 16h.
+
+O painel mistura idas e voltas na ordem cronológica, com a viagem em
+andamento no topo e as concluídas ao final. A próxima corrida recebe
+destaque; nomes e horários ficam visíveis nos cartões. Falta de horário
+fica explícita e aparece depois dos horários conhecidos. Dentro da rota,
+entrada/saída tem prioridade; a ordem de embarque do admin desempata
+passageiras do mesmo horário. Um grupo de horário é entregue antes da
+busca do grupo posterior.
+
+Se a saída for anterior ou igual à entrada, ela pertence ao dia seguinte.
+Para uma volta às 06h de hoje, a geração consulta a escala e o dia da rota
+do início do turno de ontem. Isso inclui retornos no sábado de turnos
+que começaram na sexta. O horário da ida é a entrada na empresa, **não**
+uma previsão de busca em casa ou de início da corrida: ainda não há
+antecedência/trajeto medido que permita calcular essa partida com precisão.
+
+Viagens antigas não iniciadas de hoje/futuras são substituídas por
+viagens organizadas por horário, mantendo os registros anteriores como
+cancelados. Viagens já iniciadas, concluídas ou canceladas pelo operador
+não são divididas/recriadas. A unicidade passa a ser
+`(route_id, trip_date, period, scheduled_slot)`; a função antiga da v11
+é substituída na mesma transação. Inclusões de passageiras entram no
+horário certo na próxima preparação das viagens, sem replicar em todos
+os horários. Testes: `scripts/check-trip-slots.sql` (reverte os dados de
+teste) e `node scripts/check-guided-trip.cjs`.
+
 ### Área do motorista e viagens do dia (migração v11)
 
 Execute `migration_v11.sql` antes de publicar. A área do motorista tem

@@ -2,6 +2,7 @@ import { operationalDate } from "@/lib/local-date";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { orderedDailyTrips, tripScheduleTime } from "@/lib/guided-trip";
 
 export const dynamic = "force-dynamic";
 
@@ -21,20 +22,21 @@ export default async function DriverHomePage() {
   const { data: trips, error: tripsError } = await supabase
     .from("trips")
     .select(
-      "id, trip_date, period, status, route_id, routes(name), contracts(company_name, company_logo_url, work_site_name), trip_stops(id, status, dropped_off_at, scheduled_start, scheduled_end)"
+      "id, trip_date, period, status, scheduled_time, route_id, routes(name), contracts(company_name, company_logo_url, work_site_name), trip_stops(id, employee_name, status, dropped_off_at, scheduled_start, scheduled_end)"
     )
     .eq("driver_id", user.id)
     .eq("trip_date", today)
     .neq("status", "cancelled")
     .order("period", { ascending: true }); // ida antes de volta
 
-  const priority: Record<string,number>={in_progress:0,planned:1,completed:2};
-  const orderedTrips=[...(trips || [])].sort((a,b)=>(priority[a.status] ?? 3)-(priority[b.status] ?? 3) || a.period.localeCompare(b.period));
+  const orderedTrips=orderedDailyTrips(trips || []);
+  const nextTrip=orderedTrips.find(t=>t.status === "in_progress" || t.status === "planned");
 
   return (
     <div className="px-4 py-6">
       <h1 className="text-2xl font-semibold text-graphite-900">Suas viagens de hoje</h1>
-      <p className="mb-6 mt-2 text-sm text-graphite-600">Escolha uma viagem para seguir as buscas e entregas, parada por parada.</p>
+      <p className="mb-3 mt-2 text-sm text-graphite-600">Siga a próxima corrida em destaque. As viagens estão organizadas pelo horário de entrada ou saída na empresa.</p>
+      <p className="mb-6 text-xs text-graphite-600">Na ida, o horário é o de chegada à empresa: inicie as buscas antes, considerando o percurso.</p>
       <p className="mb-4 text-sm text-graphite-600">{today.split("-").reverse().join("/")} · Viagens atribuídas a você, conforme os dias da rota e a escala das passageiras.</p>
       {!tripsError && <p className="mb-4 text-sm font-medium">{orderedTrips.filter(t=>t.status === "planned").length} a iniciar · {orderedTrips.filter(t=>t.status === "in_progress").length} em andamento · {orderedTrips.filter(t=>t.status === "completed").length} concluída(s)</p>}
       {(generationError || tripsError) && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">Não foi possível atualizar todas as corridas de hoje. Recarregue a página para tentar novamente.{tripsError ? " A lista não está disponível no momento." : " As corridas já carregadas aparecem abaixo."}</p>}
@@ -49,8 +51,9 @@ export default async function DriverHomePage() {
             <li key={trip.id}>
               <Link
                 href={`/driver/trip/${trip.id}`}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-graphite-200 bg-white p-5 active:bg-mist-50"
+                className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-white p-5 active:bg-mist-50 ${trip.id === nextTrip?.id ? "border-teal-500 ring-1 ring-teal-500" : "border-graphite-200"}`}
               >
+                <div className="flex w-full items-center justify-between gap-3"><p className="text-2xl font-semibold text-graphite-950">{tripScheduleTime(trip)?.slice(0,5) || "Sem horário"}</p>{trip.id === nextTrip?.id && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">{trip.status === "in_progress" ? "Continuar agora" : "Próxima corrida"}</span>}</div>
                 <div className="flex items-center gap-3">
                   {trip.contracts?.company_logo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -70,7 +73,8 @@ export default async function DriverHomePage() {
                       <p className="font-medium text-graphite-900">{trip.routes?.name}</p>
                     </div>
                     <p className="text-sm text-graphite-600">{trip.contracts?.company_name}</p>
-                    {(() => {const field=trip.period === "ida" ? "scheduled_start" : "scheduled_end";const times=(trip.trip_stops ?? []).map((s:Record<string,string|null>)=>s[field]?.slice(0,5)).filter(Boolean).sort();return times.length ? <p className="mt-1 text-sm text-graphite-700">{trip.period === "ida" ? "Entrada prevista na empresa" : "Saída prevista da empresa"}: {times[0]}{times[times.length-1] !== times[0] ? ` a ${times[times.length-1]}` : ""}</p> : null;})()}
+                    <p className="mt-1 text-sm text-graphite-700">{trip.period === "ida" ? "Entrada na empresa" : "Saída da empresa"}: {tripScheduleTime(trip)?.slice(0,5) || "Peça ao administrador para cadastrar o horário"}</p>
+                    <p className="mt-1 text-sm text-graphite-600">{(trip.trip_stops || []).map((s:{employee_name:string|null})=>s.employee_name || "Passageira").join(", ")}</p>
                     {trip.contracts?.work_site_name && (
                       <p className="text-xs text-amber-600">
                         Destino: {trip.contracts.work_site_name}

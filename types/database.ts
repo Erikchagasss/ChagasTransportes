@@ -88,6 +88,8 @@ export interface Trip {
   driver_id: string;
   contract_id: string;
   trip_date: string;
+  scheduled_time?: string | null;
+  scheduled_slot?: string;
   status: TripStatus;
   started_at: string | null;
   completed_at: string | null;
