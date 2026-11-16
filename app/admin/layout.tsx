@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import PushNotificationSetup from "./push-notification-setup";
+import SignOutButton from "@/app/components/sign-out-button";
 
 const NAV = [
   { href: "/admin", label: "Visão geral" },
@@ -40,6 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </nav>
         <div className="mt-8 border-t border-graphite-800 pt-4">
           <PushNotificationSetup />
+          <div className="mt-4"><SignOutButton /></div>
         </div>
       </aside>
 
@@ -52,7 +54,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         ))}
       </nav>
 
-      <div className="flex-1 pb-16 md:pb-0">{children}</div>
+      <div className="min-w-0 flex-1 pb-16 md:pb-0">
+        <header className="flex items-center justify-between gap-4 bg-graphite-950 px-4 py-3 text-white md:hidden"><span className="font-display text-lg">Fretado · Admin</span><SignOutButton /></header>
+        {children}
+      </div>
     </div>
   );
 }
