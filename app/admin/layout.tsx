@@ -9,6 +9,7 @@ const NAV = [
   { href: "/admin/routes", label: "Rotas" },
   { href: "/admin/employees", label: "Funcionárias" },
   { href: "/admin/drivers", label: "Motoristas" },
+  { href: "/admin/payroll", label: "Salários e km" },
   { href: "/admin/vehicles", label: "Veículos" },
   { href: "/admin/legal", label: "Jurídico" },
   { href: "/admin/calculator", label: "Calculadora" },

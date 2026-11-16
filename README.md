@@ -6,6 +6,36 @@ no Supabase — ver `schema_fretado.sql`).
 
 ## Setup
 
+### Salários fixos e atividade por motorista (migração v8)
+
+Execute `migration_v8.sql` depois da v7 antes de publicar esta versão.
+Em **Salários e km**, o administrador seleciona o mês e cadastra o salário
+fixo mensal de cada motorista. O valor vigora desde aquele mês até o
+próximo reajuste; cadastrar um reajuste em dezembro preserva outubro e
+novembro. Corrigir uma vigência já cadastrada altera o valor daquela
+vigência e dos meses seguintes até o próximo reajuste.
+
+O painel mostra salário mensal integral, corridas concluídas, dias com
+corridas, km registrados e custo salarial por km. Não há comissão,
+adicional por km, rateio por faltas/dias, encargos ou processamento de
+pagamento bancário. Salário não cadastrado aparece como pendência,
+nunca como zero. Apenas administradores podem ler ou alterar salários;
+o motorista não tem acesso à tabela de remuneração.
+
+Km são calculados por rota, não medidos por GPS/hodômetro. Corridas
+antigas ficam identificadas como método desconhecido. Nas novas corridas,
+a origem do cálculo fica salva; se faltarem coordenadas ou se os locais
+do ticket divergirem dos endereços geocodificados, a distância fica
+ausente, em vez de registrar um valor enganoso. O custo salarial por km
+fica indisponível quando há distâncias ausentes ou total de km zero.
+No mês em andamento, os indicadores de atividade são parciais.
+
+Validação: `node scripts/check-driver-payroll.cjs`, `npx tsc --noEmit`
+e `npm run build`. Verifique a interface com conta admin e a negativa
+de acesso à tabela de salários com conta de motorista. A FK de salários
+usa `on delete restrict` para preservar histórico ao tentar apagar um
+perfil de motorista que já tem salários cadastrados.
+
 ### Tickets de entrada e saída (migração v7)
 
 Depois das migrações anteriores, execute `migration_v7.sql` no SQL Editor

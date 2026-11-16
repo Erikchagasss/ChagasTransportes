@@ -140,6 +140,8 @@ export default function DriversPage() {
         </button>
       </div>
 
+      <a href="/admin/payroll" className="mb-6 block rounded-card border border-teal-500 bg-white p-4 text-sm text-teal-700">Cadastrar salários fixos e acompanhar km, corridas e rotas por motorista →</a>
+
       {createdCredentials && (
         <div className="mb-6 rounded-card border border-teal-500 bg-teal-500/10 p-4">
           <p className="mb-2 text-sm font-medium text-teal-600">

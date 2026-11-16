@@ -91,6 +91,7 @@ export interface Trip {
   started_at: string | null;
   completed_at: string | null;
   distance_km: number | null;
+  distance_source?: "directions_api" | "straight_line_estimate" | "none" | "legacy";
   fuel_cost: number | null;
 }
 
