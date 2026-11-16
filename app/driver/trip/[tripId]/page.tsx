@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { addressNavigation, nextGuidedStep, tripProgress, type GuidedStop } from "@/lib/guided-trip";
+import { pointForAddress, type LocationPoint } from "@/lib/location-point";
 
-type Trip = {status:string;period:string;routes:{name:string}|null;contracts:{company_name:string;work_site_name:string|null}|null};
+type Trip = {status:string;period:string;routes:{name:string}|null;contracts:{company_name:string;work_site_name:string|null;company_address:string;company_lat:number|null;company_lng:number|null;work_site_address:string|null;work_site_lat:number|null;work_site_lng:number|null}|null};
+type NavigableStop = GuidedStop & {employees:{address:string;address_lat:number|null;address_lng:number|null;address_needs_review:boolean}|null};
 const clock = (value:string|null) => value ? new Date(value).toLocaleTimeString("pt-BR",{timeZone:"America/Sao_Paulo",hour:"2-digit",minute:"2-digit"}) : "—";
 const primary = "min-h-14 w-full rounded-2xl bg-amber-500 px-5 py-4 text-base font-semibold text-graphite-950 disabled:opacity-40";
 
@@ -15,7 +17,7 @@ export default function TripPage() {
   const router = useRouter();
   const [supabase] = useState(createClient);
   const [trip,setTrip] = useState<Trip|null>(null);
-  const [stops,setStops] = useState<GuidedStop[]>([]);
+  const [stops,setStops] = useState<NavigableStop[]>([]);
   const [loading,setLoading] = useState(true);
   const [busy,setBusy] = useState(false);
   const locked = useRef(false);
@@ -25,11 +27,11 @@ export default function TripPage() {
   const [absence,setAbsence] = useState<string|null>(null);
   const load = useCallback(async()=>{
     const [t,s] = await Promise.all([
-      supabase.from("trips").select("status,period,routes(name),contracts(company_name,work_site_name)").eq("id",tripId).single(),
-      supabase.from("trip_stops").select("id,status,employee_name,employee_phone,pickup_order,pickup_address,dropoff_address,arrived_at,boarded_at,dropoff_arrived_at,dropped_off_at,scheduled_start,scheduled_end,notes").eq("trip_id",tripId).order("pickup_order").order("id"),
+      supabase.from("trips").select("status,period,routes(name),contracts(company_name,work_site_name,company_address,company_lat,company_lng,work_site_address,work_site_lat,work_site_lng)").eq("id",tripId).single(),
+      supabase.from("trip_stops").select("id,status,employee_name,employee_phone,pickup_order,pickup_address,dropoff_address,arrived_at,boarded_at,dropoff_arrived_at,dropped_off_at,scheduled_start,scheduled_end,notes,employees(address,address_lat,address_lng,address_needs_review)").eq("trip_id",tripId).order("pickup_order").order("id"),
     ]);
     if(t.error || s.error) throw new Error("Não foi possível atualizar a rota. Confira sua conexão e tente novamente.");
-    setTrip(t.data as unknown as Trip);setStops((s.data || []) as GuidedStop[]);
+    setTrip(t.data as unknown as Trip);setStops((s.data || []) as unknown as NavigableStop[]);
   },[supabase,tripId]);
   useEffect(()=>{void load().catch(e=>setError(e.message)).finally(()=>setLoading(false));},[load]);
 
@@ -48,6 +50,13 @@ export default function TripPage() {
     if(data?.length !== ids.length) throw new Error("A parada foi atualizada em outro acesso. Toque em Atualizar rota antes de continuar.");
   }
   const step = nextGuidedStep(stops,trip?.period || "ida");
+  const employee = stops.find(s=>s.id === step?.stops[0]?.id)?.employees;
+  const contract=trip?.contracts;
+  const navPoint=step ? pointForAddress(step.address,[
+    {address:employee?.address,lat:employee?.address_needs_review === false ? employee.address_lat : null,lng:employee?.address_needs_review === false ? employee.address_lng : null},
+    {address:contract?.work_site_address,lat:contract?.work_site_lat,lng:contract?.work_site_lng},
+    {address:contract?.company_address,lat:contract?.company_lat,lng:contract?.company_lng},
+  ]) : null;
   const progress = tripProgress(stops);
   const active = trip?.status === "in_progress";
   const editable = active && !busy && !editing && !absence;
@@ -101,7 +110,8 @@ export default function TripPage() {
         <div className="flex items-center gap-3 bg-teal-50 px-5 py-4"><Pin /><h2 className="text-sm font-semibold text-teal-800">{step.arrived ? "Você chegou à parada" : "Próxima parada"} · {step.kind === "pickup" ? "Embarque" : "Entrega"}</h2></div>
         <div className="space-y-4 p-5">
           <div><p className="text-2xl font-semibold leading-tight text-graphite-950">{step.stops.length === 1 ? step.stops[0].employee_name || "Passageira" : step.kind === "pickup" ? "Embarque na empresa" : "Entrega na empresa"}</p><p className="mt-2 text-base leading-relaxed text-graphite-700">{step.address}</p></div>
-          <Navigation address={step.address} />
+          <Navigation address={step.address} point={navPoint} />
+          <p className="text-xs text-graphite-600">{navPoint ? "Navegação pelas coordenadas salvas no cadastro." : "Endereço sem coordenada confirmada. Confira o destino no mapa antes de seguir; corrija o ponto em Funcionárias ou Contratos."}</p>
           {!step.arrived ? <><button disabled={!editable} onClick={arrive} className={primary}>{busy ? "Registrando..." : "Cheguei no local"}</button><p className="text-xs text-graphite-600">Chegada e embarque são horários separados. Confirme o embarque só quando a passageira entrar no veículo.</p></> : step.kind === "pickup" ? <div className="space-y-3">{step.stops.map(stop=><div key={stop.id} className="space-y-3 rounded-2xl bg-mist-50 p-4">
             <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold">{stop.employee_name || "Passageira"}</h3><p className="mt-1 text-sm text-graphite-600">{isReturn ? "Saída prevista" : "Entrada prevista"}: {(isReturn ? stop.scheduled_end : stop.scheduled_start)?.slice(0,5) || "Não informada"}</p><p className="text-sm text-graphite-600">Chegada registrada às {clock(stop.arrived_at)}</p></div>{stop.employee_phone && <a aria-label={`Ligar para ${stop.employee_name}`} href={`tel:${stop.employee_phone.replace(/[^+\d]/g,"")}`} className="rounded-xl border bg-white px-3 py-2 text-sm">Ligar</a>}</div>
             {stop.notes && <p className="whitespace-pre-wrap text-sm text-graphite-700">{stop.notes}</p>}
@@ -123,8 +133,9 @@ export default function TripPage() {
   </div>;
 }
 function Pin() {return <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="shrink-0 text-teal-700"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></svg>;}
-function Navigation({address}:{address:string}) {
-  const links=addressNavigation(address);
+function Navigation({address,point}:{address:string;point:LocationPoint|null}) {
+  if(!point) return <a target="_blank" rel="noopener noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`} className="block rounded-xl border border-amber-500 px-3 py-3 text-center text-sm font-medium">Pesquisar e conferir local no mapa</a>;
+  const links=addressNavigation(address,point);
   return <div className="grid grid-cols-2 gap-3"><a target="_blank" rel="noopener noreferrer" href={links.google} className="rounded-xl bg-graphite-950 px-3 py-3 text-center text-sm font-medium text-white">Google Maps ↗</a><a target="_blank" rel="noopener noreferrer" href={links.waze} className="rounded-xl border border-graphite-200 px-3 py-3 text-center text-sm font-medium text-graphite-900">Waze ↗</a></div>;
 }
 function TicketEditor({stop,busy,onCancel,onSave}:{stop:GuidedStop;busy:boolean;onCancel:()=>void;onSave:(values:{pickup_address:string;dropoff_address:string;notes:string})=>void}) {

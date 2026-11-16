@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
   const result = await geocodeAddress(address);
   if (!result) {
-    return NextResponse.json({ error: "não foi possível localizar o endereço" }, { status: 422 });
+    return NextResponse.json({ error: "Não foi possível confirmar rua, número e cidade com precisão. Confira endereço completo e CEP ou confirme o ponto manualmente." }, { status: 422 });
   }
 
   return NextResponse.json(result);

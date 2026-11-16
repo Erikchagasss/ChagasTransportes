@@ -63,6 +63,7 @@ export interface Employee {
   address: string;
   address_lat: number | null;
   address_lng: number | null;
+  address_needs_review: boolean;
   active: boolean;
   shift_type: ShiftType;
   work_weekdays: number[];

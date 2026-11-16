@@ -50,7 +50,12 @@ export function tripProgress(stops: GuidedStop[]) {
   };
 }
 
-export function addressNavigation(address: string) {
+export function addressNavigation(address: string, point?: {lat:number;lng:number}|null) {
+  const valid=point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && Math.abs(point.lat)<=90 && Math.abs(point.lng)<=180;
+  if(valid) return {
+    google:`https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${point.lat},${point.lng}`,
+    waze:`https://waze.com/ul?ll=${point.lat},${point.lng}&navigate=yes`,
+  };
   return {
     google:`https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURIComponent(address)}`,
     waze:`https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`,

@@ -132,10 +132,14 @@ export async function POST(
     const { data: routeEmployees } = await supabase
       .from("route_employees")
       .select(
-        "employees!inner(id, full_name, active, address_lat, address_lng, shift_type, work_weekdays)"
+        "employees!inner(id, full_name, active, address_lat, address_lng, address_needs_review, shift_type, work_weekdays)"
       )
       .eq("route_id", route.id)
       .eq("employees.active", true);
+
+    if((routeEmployees ?? []).some((re:any)=>re.employees.address_needs_review || re.employees.address_lat == null || re.employees.address_lng == null)) {
+      return NextResponse.json({error:"Confirme os pontos exatos das funcionárias antes de recalcular as distâncias do contrato."},{status:422});
+    }
 
     const geocoded = (routeEmployees ?? [])
       .map((re: any) => re.employees)

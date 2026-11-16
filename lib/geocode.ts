@@ -1,3 +1,4 @@
+import { preciseCandidate, type GeocodeCandidate } from "./geocode-quality";
 interface GeocodeResult {
   lat: number;
   lng: number;
@@ -28,7 +29,7 @@ const ABBREVIATIONS: Array<[RegExp, string]> = [
   [/\bn[ºo°]?\.?\s*(?=\d)/gi, ""],
 ];
 
-function normalizeAddress(address: string): string {
+export function normalizeAddress(address: string): string {
   return ABBREVIATIONS.reduce((acc, [pattern, full]) => acc.replace(pattern, full), address).replace(
     /\s{2,}/g,
     " "
@@ -41,22 +42,28 @@ async function locationIqSearch(apiKey: string, query: string): Promise<GeocodeR
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
   url.searchParams.set("countrycodes", "br");
-  url.searchParams.set("limit", "1");
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("matchquality", "1");
+  url.searchParams.set("accept-language", "pt-BR");
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), { signal: AbortSignal.timeout(10000), cache: "no-store" });
 
   // LocationIQ responde 404 quando não encontra nada (diferente da Google,
   // que responde 200 com status ZERO_RESULTS) — não é um erro de verdade.
   if (response.status === 404) return null;
   if (!response.ok) {
-    console.error("Geocoding falhou:", response.status, await response.text());
+    console.error("Geocoding falhou:", response.status);
     return null;
   }
 
   const data = await response.json();
   if (!Array.isArray(data) || data.length === 0) return null;
 
-  const result = data[0];
+  const precise = (data as GeocodeCandidate[]).filter(candidate => preciseCandidate(query, candidate));
+  if (!precise.length) return null;
+  const result = precise[0];
+  if (precise.some(other => Math.abs(Number(other.lat)-Number(result.lat)) + Math.abs(Number(other.lon)-Number(result.lon)) > 0.0005)) return null;
   return {
     lat: parseFloat(result.lat),
     lng: parseFloat(result.lon),
@@ -83,13 +90,13 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult | n
     return null;
   }
 
-  const normalized = normalizeAddress(address);
+  const normalized = normalizeAddress(address).replace(/^r\s+/i, "Rua ");
 
-  const result = await locationIqSearch(apiKey, normalized);
+  const result = await locationIqSearch(apiKey, normalized).catch(() => null);
   if (result) return result;
 
   if (normalized !== address) {
-    return locationIqSearch(apiKey, address);
+    return locationIqSearch(apiKey, address).catch(() => null);
   }
 
   return null;

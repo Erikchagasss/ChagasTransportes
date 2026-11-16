@@ -1,0 +1,25 @@
+const fs=require('fs'),path=require('path'),ts=require('typescript'),Module=require('module'),assert=require('node:assert/strict');
+const cache=new Map();
+function load(file){file=path.resolve(file);if(cache.has(file))return cache.get(file).exports;const m=new Module(file,module);cache.set(file,m);m.paths=Module._nodeModulePaths(path.dirname(file));m.require=name=>name.startsWith('.')?load(path.resolve(path.dirname(file),name)+'.ts'):require(name);m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,file);return m.exports;}
+const {preciseCandidate}=load('lib/geocode-quality.ts');
+const {parseLocationPoint,pointForAddress}=load('lib/location-point.ts');
+const {addressNavigation}=load('lib/guided-trip.ts');
+const {normalizeAddress,geocodeAddress}=load('lib/geocode.ts');
+const query='Rua Exemplo, 136 - Centro, Americana - SP, 13455-646';
+const candidate={lat:'-22.7',lon:'-47.3',display_name:'Exemplo',address:{road:'Rua Exemplo',house_number:'136',city:'Americana',state:'São Paulo',postcode:'13455-646',country_code:'br'},matchquality:{matchcode:'exact',matchtype:'point',matchlevel:'building'}};
+assert.equal(preciseCandidate(query,candidate),true);
+for(const changed of [{city:'Outra Cidade'},{house_number:'138'},{road:'Rua Diferente'},{state:'Paraná'},{postcode:'99999-999'},{country_code:'ar'}])assert.equal(preciseCandidate(query,{...candidate,address:{...candidate.address,...changed}}),false);
+for(const changed of [{matchcode:'fallback'},{matchtype:'centroid'},{matchtype:'interpolated'},{matchlevel:'street'}])assert.equal(preciseCandidate(query,{...candidate,matchquality:{...candidate.matchquality,...changed}}),false);
+assert.equal(preciseCandidate(query,{...candidate,lat:'NaN'}),false);
+assert.equal(preciseCandidate('Rua Exemplo, 136',candidate),false);
+assert.equal(parseLocationPoint(''),null);assert.equal(parseLocationPoint('0,0'),null);assert.equal(parseLocationPoint('https://maps.google.com/@-22.7,-47.3,15z'),null);
+assert.deepEqual(parseLocationPoint('-22.7, -47.3'),{lat:-22.7,lng:-47.3});
+assert.equal(pointForAddress('Outro endereço',[{address:'Casa',lat:-22.7,lng:-47.3}]),null);
+assert.deepEqual(pointForAddress(' CASA ',[{address:'Casa',lat:'-22.7',lng:'-47.3'}]),{lat:-22.7,lng:-47.3});
+assert.equal(pointForAddress('Casa',[{address:'Casa',lat:null,lng:null}]),null);
+assert.ok(addressNavigation('Rua errada',{lat:-22.7,lng:-47.3}).google.includes('destination=-22.7,-47.3'));
+assert.ok(addressNavigation('Rua errada',{lat:-22.7,lng:-47.3}).waze.includes('ll=-22.7,-47.3'));
+assert.equal(normalizeAddress('Av. Exemplo, nº 12'),'Avenida Exemplo, 12');
+process.env.LOCATIONIQ_API_KEY='test-key';let request;
+global.fetch=async url=>{request=new URL(url);return {ok:true,status:200,json:async()=>[{...candidate,address:{...candidate.address,city:'Outra Cidade'}},candidate]};};
+(async()=>{const result=await geocodeAddress(query);assert.equal(result.lat,-22.7);assert.equal(request.searchParams.get('limit'),'5');assert.equal(request.searchParams.get('matchquality'),'1');console.log('PASS: cidade/rua/número/CEP, rejeição de centros e aproximações, parsing de coordenadas e navegação pelo ponto salvo.');})().catch(e=>{console.error(e);process.exitCode=1;});

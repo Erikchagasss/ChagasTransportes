@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import LocationPicker from "@/app/components/location-picker";
 import { geocodeAddressClient } from "@/lib/geocode-client";
 import { uploadContractLogo } from "@/lib/logo-upload";
 import type { Contract, ContractStatus, Profile } from "@/types/database";
@@ -96,8 +97,7 @@ export default function ContractsPage() {
     contractId: string;
     field: "company" | "work_site";
   } | null>(null);
-  const [manualLat, setManualLat] = useState("");
-  const [manualLng, setManualLng] = useState("");
+  const [locationError, setLocationError] = useState("");
 
   const load = useCallback(async () => {
     const { data: contractsData } = await supabase
@@ -218,7 +218,7 @@ export default function ContractsPage() {
   }
 
   async function geocodeContract(id: string, address: string) {
-    setGeocodingId(id);
+    setGeocodingId(id);setLocationError("");
     const result = await geocodeAddressClient(address);
     if (result) {
       await supabase
@@ -226,12 +226,13 @@ export default function ContractsPage() {
         .update({ company_lat: result.lat, company_lng: result.lng })
         .eq("id", id);
     }
+    if(!result) setLocationError("Não foi possível confirmar o número exato. Use Conferir ponto para definir a entrada correta da empresa no mapa ou pelo GPS.");
     setGeocodingId(null);
     load();
   }
 
   async function geocodeWorkSite(id: string, address: string) {
-    setGeocodingId(`worksite:${id}`);
+    setGeocodingId(`worksite:${id}`);setLocationError("");
     const result = await geocodeAddressClient(address);
     if (result) {
       await supabase
@@ -243,28 +244,8 @@ export default function ContractsPage() {
     load();
   }
 
-  function startManualCoords(contractId: string, field: "company" | "work_site", contract: Contract) {
-    setManualCoordsTarget({ contractId, field });
-    const lat = field === "company" ? contract.company_lat : contract.work_site_lat;
-    const lng = field === "company" ? contract.company_lng : contract.work_site_lng;
-    setManualLat(lat != null ? String(lat) : "");
-    setManualLng(lng != null ? String(lng) : "");
-  }
-
-  async function saveManualCoords() {
-    if (!manualCoordsTarget) return;
-    const lat = Number(manualLat.replace(",", "."));
-    const lng = Number(manualLng.replace(",", "."));
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-    const columns =
-      manualCoordsTarget.field === "company"
-        ? { company_lat: lat, company_lng: lng }
-        : { work_site_lat: lat, work_site_lng: lng };
-
-    await supabase.from("contracts").update(columns).eq("id", manualCoordsTarget.contractId);
-    setManualCoordsTarget(null);
-    load();
+  function startManualCoords(contractId: string, field: "company" | "work_site", _contract: Contract) {
+    setManualCoordsTarget({contractId,field});
   }
 
   function driverNames(contractId: string) {
@@ -278,6 +259,7 @@ export default function ContractsPage() {
 
   return (
     <div className="px-4 py-8 md:px-8">
+      {locationError && <p role="alert" className="mb-4 text-sm text-red-700">{locationError}</p>}
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl text-graphite-900">Contratos</h1>
         <button
@@ -420,54 +402,24 @@ export default function ContractsPage() {
                           onClick={() => startManualCoords(c.id, "company", c)}
                           className="text-xs text-graphite-600 underline"
                         >
-                          Coordenadas do contratante na mão
+                          Conferir ponto do contratante
                         </button>
                         {c.work_site_address && (
                           <button
                             onClick={() => startManualCoords(c.id, "work_site", c)}
                             className="text-xs text-graphite-600 underline"
                           >
-                            Coordenadas do destino na mão
+                            Conferir ponto da empresa de destino
                           </button>
                         )}
                       </div>
 
-                      {manualCoordsTarget?.contractId === c.id && (
-                        <div className="mt-2 space-y-1 rounded-card border border-teal-500 bg-teal-500/5 p-2">
-                          <p className="text-xs text-graphite-600">
-                            Endereços em marco de rodovia (ex: &quot;km 131&quot;) ou zona
-                            rural costumam confundir o roteador — pega a coordenada certa
-                            no Google Maps: clique com botão direito bem em cima do local →
-                            o primeiro número da lista já vem no formato certo pra colar.
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <input
-                              value={manualLat}
-                              onChange={(e) => setManualLat(e.target.value)}
-                              placeholder="Latitude"
-                              className="w-36 rounded-card border border-graphite-200 px-2 py-1 text-xs"
-                            />
-                            <input
-                              value={manualLng}
-                              onChange={(e) => setManualLng(e.target.value)}
-                              placeholder="Longitude"
-                              className="w-36 rounded-card border border-graphite-200 px-2 py-1 text-xs"
-                            />
-                            <button
-                              onClick={saveManualCoords}
-                              className="rounded-card bg-teal-500 px-3 py-1 text-xs font-medium text-white"
-                            >
-                              Salvar
-                            </button>
-                            <button
-                              onClick={() => setManualCoordsTarget(null)}
-                              className="text-xs text-graphite-600 underline"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      {manualCoordsTarget?.contractId === c.id && <LocationPicker address={(manualCoordsTarget.field === "company" ? c.company_address : c.work_site_address) || ""} initial={manualCoordsTarget.field === "company" ? (c.company_lat != null && c.company_lng != null ? {lat:Number(c.company_lat),lng:Number(c.company_lng)} : null) : (c.work_site_lat != null && c.work_site_lng != null ? {lat:Number(c.work_site_lat),lng:Number(c.work_site_lng)} : null)} onCancel={()=>setManualCoordsTarget(null)} onSave={async point=>{
+                        const target=manualCoordsTarget.field;
+                        const {error}=await supabase.from("contracts").update(target === "company" ? {company_lat:point.lat,company_lng:point.lng} : {work_site_lat:point.lat,work_site_lng:point.lng}).eq("id",c.id).eq(target === "company" ? "company_address" : "work_site_address",target === "company" ? c.company_address : c.work_site_address).select("id").single();
+                        if(error) throw new Error(error.message);
+                        setManualCoordsTarget(null);await load();
+                      }} />}
                     </div>
                   </div>
                   <p className="shrink-0 font-display text-lg text-graphite-900">
@@ -693,6 +645,8 @@ function PriceReviewAlert({
     setApplying(false);
     onAccept();
   }
+
+  if(contract.suggested_monthly_value == null && contract.current_estimated_distance_km == null) return <p className="mt-3 rounded-card border border-amber-500 p-3 text-sm text-amber-700">Pontos de localização aguardando conferência. Confirme os pontos das funcionárias para liberar o recálculo de distância e valor sugerido.</p>;
 
   return (
     <div className="mt-3 rounded-card border border-amber-500 bg-amber-500/10 p-3">

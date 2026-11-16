@@ -33,7 +33,7 @@ export async function POST(
 
   const { data: stops, error: stopsError } = await supabase
     .from("trip_stops")
-    .select("status, pickup_order, dropped_off_at, pickup_address, dropoff_address, employees(address, address_lat, address_lng)")
+    .select("status, pickup_order, dropped_off_at, pickup_address, dropoff_address, employees(address, address_lat, address_lng, address_needs_review)")
     .eq("trip_id", tripId)
     .order("pickup_order", { ascending: true });
 
@@ -45,7 +45,7 @@ export async function POST(
 
   const employeeLocations = boarded
     .map((s: any) => s.employees)
-    .filter((e: any) => e?.address_lat != null && e?.address_lng != null)
+    .filter((e: any) => e?.address_lat != null && e?.address_lng != null && e.address_needs_review === false)
     .map((e: any) => ({ lat: e.address_lat, lng: e.address_lng }));
 
   const contract = trip.contracts as any;

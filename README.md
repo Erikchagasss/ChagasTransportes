@@ -6,6 +6,35 @@ no Supabase — ver `schema_fretado.sql`).
 
 ## Setup
 
+### Precisão dos pontos (migração v10)
+
+Execute `migration_v10.sql` antes de publicar esta versão. Coordenadas
+anteriores ficam preservadas, mas exigem conferência. A navegação usa
+coordenadas numéricas da funcionária/empresa quando o endereço do ticket
+corresponde ao cadastro. Pontos residenciais pendentes de revisão não são
+usados para navegação ou conclusão do cálculo de km. Um endereço alterado
+no ticket não herda a coordenada do endereço antigo.
+
+O geocodificador pede até cinco resultados e valida cidade, estado quando
+informado, rua, número, CEP quando disponível e qualidade da correspondência.
+Não aceita centro de rua/cidade, aproximação, interpolação ou múltiplos
+pontos conflitantes como localização precisa. O fato de o provedor não
+confirmar um número não prova que o endereço esteja errado: pode faltar
+cobertura de numeração no mapa. Não há troca automática por outro provedor.
+
+Em Funcionárias/Contratos, **Conferir ponto** permite colar um par explícito
+de latitude/longitude e conferir no Google Maps. O GPS do aparelho exige
+ação do usuário, captura nova em alta precisão e estimativa de erro até
+25 m; deve ser usado fisicamente no local correto. O ponto só é salvo
+após confirmação. Alterar endereço invalida a coordenada anterior.
+
+Distância e valor sugerido do contrato ficam pendentes enquanto houver
+funcionárias ativas sem ponto conferido, preservando o valor mensal acordado.
+Auditoria privada: `node scripts/audit-geocoding.cjs`; `--apply` altera
+somente correspondências precisas. Usa endereços residenciais na LocationIQ:
+requer autorização do responsável. Backups em `.location-audit/` são privados
+e ignorados pelo Git. Teste: `node scripts/check-geocode.cjs`.
+
 ### Rota guiada do motorista (migração v9)
 
 Execute `migration_v9.sql` depois da v8 **antes de publicar** esta versão.

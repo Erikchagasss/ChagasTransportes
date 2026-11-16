@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import LocationPicker from "@/app/components/location-picker";
 import { geocodeAddressClient } from "@/lib/geocode-client";
 import { formatShiftSummary, WEEKDAY_LABELS } from "@/lib/schedule";
 import { suspiciousDistanceFrom } from "@/lib/geo-sanity";
@@ -71,8 +72,6 @@ export default function EmployeesPage() {
   const [geocodingId, setGeocodingId] = useState<string | null>(null);
 
   const [manualCoordsId, setManualCoordsId] = useState<string | null>(null);
-  const [manualLat, setManualLat] = useState("");
-  const [manualLng, setManualLng] = useState("");
 
   const loadContracts = useCallback(async () => {
     const { data } = await supabase.from("contracts").select("*").eq("status", "active");
@@ -124,16 +123,13 @@ export default function EmployeesPage() {
   }
 
   async function geocodeEmployee(id: string, address: string) {
-    setGeocodingId(id);
+    setGeocodingId(id);setError("");
     const result = await geocodeAddressClient(address);
     if (result) {
-      await supabase
-        .from("employees")
-        .update({ address_lat: result.lat, address_lng: result.lng })
-        .eq("id", id);
-    }
-    setGeocodingId(null);
-    loadEmployees();
+      const {error}=await supabase.from("employees").update({ address_lat: result.lat, address_lng: result.lng, address_needs_review:false }).eq("id",id).eq("address",address).select("id").single();
+      if(error) setError(error.message);
+    } else setError("O endereço não foi localizado com precisão no número informado. Confira cidade, estado e CEP ou use Conferir / corrigir ponto exato.");
+    setGeocodingId(null);await loadEmployees();
   }
 
   function startEdit(emp: Employee) {
@@ -175,21 +171,7 @@ export default function EmployeesPage() {
     loadEmployees();
   }
 
-  function startManualCoords(emp: Employee) {
-    setManualCoordsId(emp.id);
-    setManualLat(emp.address_lat != null ? String(emp.address_lat) : "");
-    setManualLng(emp.address_lng != null ? String(emp.address_lng) : "");
-  }
-
-  async function saveManualCoords(empId: string) {
-    const lat = Number(manualLat.replace(",", "."));
-    const lng = Number(manualLng.replace(",", "."));
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-
-    await supabase.from("employees").update({ address_lat: lat, address_lng: lng }).eq("id", empId);
-    setManualCoordsId(null);
-    loadEmployees();
-  }
+  function startManualCoords(emp: Employee) { setManualCoordsId(emp.id); }
 
   const currentContract = contracts.find((c) => c.id === selectedContract) ?? null;
   const contractReference = currentContract
@@ -270,6 +252,7 @@ export default function EmployeesPage() {
                   <p className="text-sm text-graphite-600">{emp.address}</p>
                   {emp.phone && <p className="text-sm text-graphite-600">{emp.phone}</p>}
                   <p className="mt-1 text-xs text-graphite-600">{formatShiftSummary(emp)}</p>
+                  {emp.address_needs_review && <p className="mt-2 text-xs font-medium text-amber-700">Ponto pendente de conferência. O motorista não será guiado pelas coordenadas antigas.</p>}
                   {emp.address_lat == null && (
                     <button
                       onClick={() => geocodeEmployee(emp.id, emp.address)}
@@ -296,48 +279,11 @@ export default function EmployeesPage() {
                         </p>
                       );
                     })()}
-                  {manualCoordsId === emp.id ? (
-                    <div className="mt-2 space-y-1">
-                      <p className="text-xs text-graphite-600">
-                        Pega a coordenada certa no Google Maps: clique com o botão direito
-                        no local exato → o primeiro número da lista que aparece já vem no
-                        formato certo pra colar aqui (lat, depois vírgula, depois lng).
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          value={manualLat}
-                          onChange={(e) => setManualLat(e.target.value)}
-                          placeholder="Latitude (ex: -22.7195149)"
-                          className="w-40 rounded-card border border-graphite-200 px-2 py-1 text-xs"
-                        />
-                        <input
-                          value={manualLng}
-                          onChange={(e) => setManualLng(e.target.value)}
-                          placeholder="Longitude (ex: -47.3676155)"
-                          className="w-40 rounded-card border border-graphite-200 px-2 py-1 text-xs"
-                        />
-                        <button
-                          onClick={() => saveManualCoords(emp.id)}
-                          className="rounded-card bg-teal-500 px-3 py-1 text-xs font-medium text-white"
-                        >
-                          Salvar
-                        </button>
-                        <button
-                          onClick={() => setManualCoordsId(null)}
-                          className="text-xs text-graphite-600 underline"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => startManualCoords(emp)}
-                      className="mt-1 block text-xs text-graphite-600 underline"
-                    >
-                      Definir coordenadas manualmente
-                    </button>
-                  )}
+                  {manualCoordsId === emp.id ? <LocationPicker address={emp.address} initial={emp.address_lat != null && emp.address_lng != null ? {lat:Number(emp.address_lat),lng:Number(emp.address_lng)} : null} onCancel={()=>setManualCoordsId(null)} onSave={async point=>{
+                    const {error}=await supabase.from("employees").update({address_lat:point.lat,address_lng:point.lng,address_needs_review:false}).eq("id",emp.id).eq("address",emp.address).select("id").single();
+                    if(error) throw new Error(error.message);
+                    setManualCoordsId(null);await loadEmployees();
+                  }} /> : <div className="mt-2 flex flex-wrap gap-3"><button onClick={()=>startManualCoords(emp)} className="text-xs text-teal-700 underline">Conferir / corrigir ponto exato</button>{emp.address_lat != null && <button disabled={geocodingId === emp.id} onClick={()=>geocodeEmployee(emp.id,emp.address)} className="text-xs underline">{geocodingId === emp.id ? "Validando..." : "Revalidar endereço"}</button>}</div>}
                   {!emp.active && (
                     <span className="mt-1 inline-block rounded-full bg-graphite-200 px-2 py-0.5 text-xs text-graphite-700">
                       Inativa

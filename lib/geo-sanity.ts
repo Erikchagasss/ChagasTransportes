@@ -23,7 +23,7 @@ export function suspiciousDistanceFrom(
   point: { lat: number; lng: number } | null,
   reference: { lat: number | null; lng: number | null } | null
 ): number | null {
-  if (!point || !reference?.lat || !reference?.lng) return null;
+  if (!point || reference?.lat == null || reference?.lng == null) return null;
   const distance = haversineKm(point.lat, point.lng, reference.lat, reference.lng);
   return distance > SUSPICIOUS_DISTANCE_KM ? distance : null;
 }
