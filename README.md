@@ -6,6 +6,31 @@ no Supabase — ver `schema_fretado.sql`).
 
 ## Setup
 
+### Rota guiada do motorista (migração v9)
+
+Execute `migration_v9.sql` depois da v8 **antes de publicar** esta versão.
+A tela da viagem agora destaca a próxima parada e avança conforme os
+registros salvos. Não inicia rastreamento GPS nem estima chegada ao vivo.
+
+- Na ida, cada busca tem **Cheguei no local** e **Funcionária embarcou**.
+  Depois das buscas, passageiras com o mesmo destino são entregues juntas.
+  Um destino alterado gera uma entrega separada.
+- Na volta, passageiras no mesmo local de busca aparecem juntas, com
+  confirmação individual de embarque/ausência. As entregas são casa a casa.
+- A chegada (`arrived_at` / `dropoff_arrived_at`) é separada do embarque
+  e desembarque. Datas anteriores ficam vazias, sem horários inventados.
+- Google Maps e Waze abrem a navegação para o endereço da parada atual.
+  Mudanças salvas de local atualizam a sequência e os próximos atalhos.
+- Ausência pede confirmação e aceita motivo. Observações e locais podem
+  ser editados na sequência; a edição deve ser salva/cancelada antes de
+  avançar. Só a confirmação gravada no banco avança a parada.
+- O progresso distingue embarcadas, entregues e ausentes. A finalização
+  continua validada pela API e pelo banco.
+
+A aba de tickets no Excel inclui quatro novas colunas de chegada:
+busca/entrega da ida e busca/entrega da volta, além dos horários já existentes.
+Teste da sequência: `node scripts/check-guided-trip.cjs`.
+
 ### Salários fixos e atividade por motorista (migração v8)
 
 Execute `migration_v8.sql` depois da v7 antes de publicar esta versão.

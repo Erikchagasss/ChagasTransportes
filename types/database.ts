@@ -101,6 +101,8 @@ export interface TripStop {
   employee_id: string;
   status: StopStatus;
   boarded_at: string | null;
+  arrived_at: string | null;
+  dropoff_arrived_at: string | null;
   dropped_off_at: string | null;
   notes: string;
   pickup_address: string | null;

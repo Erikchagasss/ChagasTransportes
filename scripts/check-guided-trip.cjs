@@ -1,0 +1,20 @@
+const fs=require('fs'),ts=require('typescript'),Module=require('module'),assert=require('node:assert/strict');
+const m=new Module('guided-trip');m._compile(ts.transpileModule(fs.readFileSync('lib/guided-trip.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,'guided-trip.js');
+const {nextGuidedStep,tripProgress,addressNavigation}=m.exports;
+const base={id:'a',status:'pending',employee_name:'Ana',employee_phone:null,pickup_order:1,pickup_address:'Casa A',dropoff_address:'Empresa',arrived_at:null,boarded_at:null,dropoff_arrived_at:null,dropped_off_at:null,scheduled_start:'06:00',scheduled_end:'16:00',notes:''};
+const b={...base,id:'b',employee_name:'Bia',pickup_order:2,pickup_address:'Casa B'};
+let step=nextGuidedStep([b,base],'ida');assert.equal(step.stops[0].id,'a');assert.equal(step.kind,'pickup');assert.equal(step.arrived,false);
+step=nextGuidedStep([{...base,status:'boarded',boarded_at:'2026-11-16T08:00:00Z'},b],'ida');assert.equal(step.stops[0].id,'b'); // Não entrega antes da última busca.
+const boarded=[base,b].map(s=>({...s,status:'boarded',boarded_at:'2026-11-16T08:00:00Z'}));
+step=nextGuidedStep(boarded,'ida');assert.equal(step.kind,'dropoff');assert.equal(step.stops.length,2);
+step=nextGuidedStep([boarded[0],{...boarded[1],dropoff_address:'Outra empresa'}],'ida');assert.equal(step.stops.length,1);
+const back=[base,b].map(s=>({...s,pickup_address:'Empresa',dropoff_address:s.pickup_address}));
+step=nextGuidedStep(back,'volta');assert.equal(step.stops.length,2);assert.equal(step.kind,'pickup');
+step=nextGuidedStep(back.map(s=>({...s,status:'boarded',boarded_at:'2026-11-16T20:00:00Z'})),'volta');assert.equal(step.stops.length,1);assert.equal(step.address,'Casa A');
+assert.equal(nextGuidedStep([{...base,status:'absent'}, {...b,status:'boarded',dropped_off_at:'2026-11-16T21:00:00Z'}],'ida'),null);
+assert.equal(nextGuidedStep([],'ida'),null);
+assert.equal(nextGuidedStep([{...back[0],arrived_at:'2026-11-16T08:00:00Z'},back[1]],'volta').arrived,false);
+assert.equal(nextGuidedStep([{...base,pickup_address:null},{...b,pickup_address:null}],'volta').stops.length,1);
+assert.deepEqual(tripProgress([{...base,status:'absent'}, {...b,status:'boarded',dropped_off_at:'2026-11-16T21:00:00Z'}]),{total:2,boarded:1,delivered:1,absent:1,resolved:2});
+assert.ok(addressNavigation('Rua A & B, nº 10').google.includes(encodeURIComponent('Rua A & B, nº 10')));
+console.log('PASS: sequência ida/volta, embarque em grupo, destinos alterados, ausências, retomada e links de navegação.');

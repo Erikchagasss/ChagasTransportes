@@ -14,7 +14,7 @@ export default async function DriverHomePage() {
   const { data: trips } = await supabase
     .from("trips")
     .select(
-      "id, trip_date, period, status, route_id, routes(name), contracts(company_name, company_logo_url, work_site_name)"
+      "id, trip_date, period, status, route_id, routes(name), contracts(company_name, company_logo_url, work_site_name), trip_stops(id, status, dropped_off_at)"
     )
     .eq("driver_id", user!.id)
     .eq("trip_date", today)
@@ -22,7 +22,8 @@ export default async function DriverHomePage() {
 
   return (
     <div className="px-4 py-6">
-      <h1 className="mb-4 text-xl text-graphite-900">Corridas de hoje</h1>
+      <h1 className="text-2xl font-semibold text-graphite-900">Suas viagens de hoje</h1>
+      <p className="mb-6 mt-2 text-sm text-graphite-600">Escolha uma viagem para seguir as buscas e entregas, parada por parada.</p>
 
       {!trips || trips.length === 0 ? (
         <p className="rounded-card border border-dashed border-graphite-200 p-6 text-center text-sm text-graphite-600">
@@ -34,7 +35,7 @@ export default async function DriverHomePage() {
             <li key={trip.id}>
               <Link
                 href={`/driver/trip/${trip.id}`}
-                className="flex items-center justify-between rounded-card border border-graphite-200 bg-white p-4 shadow-sm active:scale-[0.99]"
+                className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-graphite-200 bg-white p-5 active:bg-mist-50"
               >
                 <div className="flex items-center gap-3">
                   {trip.contracts?.company_logo_url ? (
@@ -62,7 +63,8 @@ export default async function DriverHomePage() {
                     )}
                   </div>
                 </div>
-                <StatusBadge status={trip.status} />
+                <div className="flex flex-col items-end gap-2"><StatusBadge status={trip.status} /><p className="text-xs text-graphite-600">{trip.trip_stops?.length ?? 0} passageira(s)</p></div>
+                <div className="flex w-full items-center justify-between border-t border-graphite-200 pt-3 text-sm"><span className="text-graphite-600">{(trip.trip_stops ?? []).filter((s: {status:string;dropped_off_at:string|null})=>s.status === "boarded" && !!s.dropped_off_at).length} entrega(s) confirmada(s)</span><span className="font-semibold text-teal-700">{trip.status === "in_progress" ? "Continuar viagem" : trip.status === "planned" ? "Ver paradas" : "Ver registros"} →</span></div>
               </Link>
             </li>
           ))}
