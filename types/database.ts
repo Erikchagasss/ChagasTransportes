@@ -70,6 +70,8 @@ export interface Employee {
   shift_anchor_date: string | null;
   shift_start_time: string | null;
   shift_end_time: string | null;
+  /** Valor combinado para um trecho: ida ou volta. */
+  transport_leg_value: number | null;
 }
 
 export interface Route {

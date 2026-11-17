@@ -17,6 +17,7 @@ interface EmployeeFormState {
   shift_anchor_date: string;
   shift_start_time: string;
   shift_end_time: string;
+  transport_leg_value: string;
 }
 
 const EMPTY_FORM: EmployeeFormState = {
@@ -28,6 +29,7 @@ const EMPTY_FORM: EmployeeFormState = {
   shift_anchor_date: "",
   shift_start_time: "",
   shift_end_time: "",
+  transport_leg_value: "",
 };
 
 function employeeToForm(emp: Employee): EmployeeFormState {
@@ -40,6 +42,7 @@ function employeeToForm(emp: Employee): EmployeeFormState {
     shift_anchor_date: emp.shift_anchor_date ?? "",
     shift_start_time: emp.shift_start_time?.slice(0, 5) ?? "",
     shift_end_time: emp.shift_end_time?.slice(0, 5) ?? "",
+    transport_leg_value: emp.transport_leg_value == null ? "" : String(emp.transport_leg_value),
   };
 }
 
@@ -53,6 +56,7 @@ function formToPayload(f: EmployeeFormState) {
     shift_anchor_date: f.shift_type === "12x36" ? f.shift_anchor_date || null : null,
     shift_start_time: f.shift_start_time || null,
     shift_end_time: f.shift_end_time || null,
+    transport_leg_value: f.transport_leg_value === "" ? null : Number(f.transport_leg_value),
   };
 }
 
@@ -252,6 +256,7 @@ export default function EmployeesPage() {
                   <p className="text-sm text-graphite-600">{emp.address}</p>
                   {emp.phone && <p className="text-sm text-graphite-600">{emp.phone}</p>}
                   <p className="mt-1 text-xs text-graphite-600">{formatShiftSummary(emp)}</p>
+                  {emp.transport_leg_value != null && <p className="mt-1 text-xs text-graphite-600">Valor por trecho: {emp.transport_leg_value.toLocaleString("pt-BR", {style:"currency",currency:"BRL"})}</p>}
                   {emp.address_needs_review && <p className="mt-2 text-xs font-medium text-amber-700">Ponto pendente de conferência. O motorista não será guiado pelas coordenadas antigas.</p>}
                   {emp.address_lat == null && (
                     <button
@@ -340,6 +345,19 @@ function EmployeeFields({
         onChange={(e) => onChange({ full_name: e.target.value })}
         className="rounded-card border border-graphite-200 px-4 py-2"
       />
+      <label className="block">
+        <span className="mb-1 block text-xs text-graphite-600">Valor por trecho (ida ou volta, opcional)</span>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Ex.: 56,25"
+          value={value.transport_leg_value}
+          onChange={(e) => onChange({ transport_leg_value: e.target.value })}
+          className="w-full rounded-card border border-graphite-200 px-4 py-2"
+        />
+        <span className="mt-1 block text-xs text-graphite-600">O Excel multiplica este valor pelos trechos programados no dia.</span>
+      </label>
       <input
         placeholder="Telefone (opcional)"
         value={value.phone}

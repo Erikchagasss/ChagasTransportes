@@ -15,6 +15,7 @@ interface TripRow {
   distance_km: number | null;
   fuel_cost: number | null;
   contracts: { company_name: string } | null;
+  routes: { name: string } | null;
 }
 
 function statusLabel(status: string) {
@@ -58,7 +59,7 @@ export default function ReportsPage() {
     const rows: TripRow[] = [];
     for (let offset = 0; ; offset += 50) {
       let query = supabase.from("trips")
-        .select("id, route_id, driver_id, trip_date, period, status, distance_km, fuel_cost, contracts(company_name), trip_stops(*)")
+        .select("id, route_id, driver_id, trip_date, period, status, distance_km, fuel_cost, contracts(company_name), routes(name), trip_stops(*)")
         .order("trip_date", { ascending: false }).order("id").range(offset, offset + 49);
       if (contractId) query = query.eq("contract_id", contractId);
       if (dateFrom) query = query.gte("trip_date", dateFrom);
@@ -85,56 +86,11 @@ export default function ReportsPage() {
     try {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("Corridas");
-
-    const columnWidths = [14, 10, 28, 16, 12, 18];
-    columnWidths.forEach((width, i) => {
-      sheet.getColumn(i + 1).width = width;
-    });
-
-    const selectedContract = contracts.find((c) => c.id === contractId);
-    let headerRowNumber = 1;
-
-    if (selectedContract?.company_logo_url) {
-      const dataUrl = await fetchImageAsDataUrl(selectedContract.company_logo_url);
-      if (dataUrl) {
-        const match = dataUrl.match(/^data:image\/(png|jpe?g);base64,/);
-        const ext = match?.[1] === "jpg" ? "jpeg" : ((match?.[1] as "png" | "jpeg") ?? "png");
-        const imageId = workbook.addImage({ base64: dataUrl, extension: ext });
-        sheet.addImage(imageId, "A1:B4");
-        sheet.getCell("C1").value = selectedContract.company_name;
-        sheet.getCell("C1").font = { bold: true, size: 14 };
-        headerRowNumber = 6; // 4 linhas da logo + 1 em branco
-      }
-    }
-
-    const headerRow = sheet.getRow(headerRowNumber);
-    headerRow.values = ["Data", "Período", "Contrato", "Status", "Km", "Combustível (R$)"];
-    headerRow.font = { bold: true };
-
-    trips.forEach((t) => {
-      sheet.addRow([
-        t.trip_date,
-        t.period === "ida" ? "Ida" : "Volta",
-        t.contracts?.company_name ?? "",
-        statusLabel(t.status),
-        t.distance_km ?? "",
-        t.fuel_cost ?? "",
-      ]);
-    });
-
-    sheet.addRow([]);
-    const totalsRow = sheet.addRow([
-      "",
-      "",
-      "Total",
-      `${completedCount} concluída(s)`,
-      Number(totalDistance.toFixed(1)),
-      Number(totalFuel.toFixed(2)),
-    ]);
-    totalsRow.font = { bold: true };
-
-    const { addTransportTickets } = await import("@/lib/transport-report");
+    const { data: employeeRates, error: employeeRatesError } = await supabase.from("employees").select("id, transport_leg_value");
+    if (employeeRatesError) throw new Error(employeeRatesError.message);
+    const values=new Map((employeeRates ?? []).map(employee=>[employee.id,employee.transport_leg_value == null ? null : Number(employee.transport_leg_value)]));
+    const { addMonthlyRideControl, addTransportTickets } = await import("@/lib/transport-report");
+    addMonthlyRideControl(workbook, trips, dateFrom, dateTo, values);
     addTransportTickets(workbook, trips, dateFrom, dateTo);
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], {
@@ -228,7 +184,7 @@ export default function ReportsPage() {
     <div className="px-4 py-8 md:px-8">
       <h1 className="mb-6 text-2xl text-graphite-900">Relatórios</h1>
       {error && <p role="alert" className="mb-4 text-red-700">{error}</p>}
-      <p className="mb-4 text-sm text-graphite-600">Excel inclui tickets por funcionária: horários previstos, busca e entrega na ida e volta, locais e observações.</p>
+      <p className="mb-4 text-sm text-graphite-600">Excel reproduz o controle mensal por funcionária, com duas colunas lado a lado, fins de semana e total. A segunda aba preserva tickets, horários reais, locais e observações.</p>
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div>
