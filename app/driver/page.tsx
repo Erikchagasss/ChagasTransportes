@@ -2,7 +2,7 @@ import { operationalDate } from "@/lib/local-date";
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { orderedDailyTrips, tripScheduleTime } from "@/lib/guided-trip";
+import { nextActionableTrip, orderedDailyTrips, tripScheduleTime } from "@/lib/guided-trip";
 
 export const dynamic = "force-dynamic";
 
@@ -30,64 +30,63 @@ export default async function DriverHomePage() {
     .order("period", { ascending: true }); // ida antes de volta
 
   const orderedTrips=orderedDailyTrips(trips || []);
-  const nextTrip=orderedTrips.find(t=>t.status === "in_progress" || t.status === "planned");
+  // A relação do Supabase pode vir tipada como array apesar de cada corrida ter um único contrato/rota.
+  const nextTrip:any=nextActionableTrip(orderedTrips);
+  const actionableTrips=orderedTrips.filter(trip=>trip.status === "in_progress" || trip.status === "planned");
+  const laterTrips=Math.max(0,actionableTrips.length-(nextTrip ? 1 : 0));
+  const sameTimeTrips=nextTrip
+    ? actionableTrips.filter(trip=>trip.id !== nextTrip.id && tripScheduleTime(trip) === tripScheduleTime(nextTrip)).length
+    : 0;
 
   return (
     <div className="px-4 py-6">
-      <h1 className="text-2xl font-semibold text-graphite-900">Suas viagens de hoje</h1>
-      <p className="mb-3 mt-2 text-sm text-graphite-600">Siga a próxima corrida em destaque. As viagens estão organizadas pelo horário de entrada ou saída na empresa.</p>
-      <p className="mb-6 text-xs text-graphite-600">Na ida, o horário é o de chegada à empresa: inicie as buscas antes, considerando o percurso.</p>
-      <p className="mb-4 text-sm text-graphite-600">{today.split("-").reverse().join("/")} · Viagens atribuídas a você, conforme os dias da rota e a escala das passageiras.</p>
-      {!tripsError && <p className="mb-4 text-sm font-medium">{orderedTrips.filter(t=>t.status === "planned").length} a iniciar · {orderedTrips.filter(t=>t.status === "in_progress").length} em andamento · {orderedTrips.filter(t=>t.status === "completed").length} concluída(s)</p>}
+      <h1 className="text-2xl font-semibold text-graphite-900">{nextTrip?.status === "in_progress" ? "Corrida em andamento" : "Sua próxima corrida"}</h1>
+      <p className="mb-3 mt-2 text-sm text-graphite-600">Aqui aparece somente a corrida que você deve fazer agora. Ao concluí-la, a próxima do horário será exibida automaticamente.</p>
+      <p className="mb-6 text-xs text-graphite-600">Na ida, o horário informado é o de chegada à empresa. Comece as buscas antes, considerando o percurso.</p>
+      <p className="mb-4 text-sm text-graphite-600">{today.split("-").reverse().join("/")} · Corridas atribuídas a você conforme a escala.</p>
       {(generationError || tripsError) && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">Não foi possível atualizar todas as corridas de hoje. Recarregue a página para tentar novamente.{tripsError ? " A lista não está disponível no momento." : " As corridas já carregadas aparecem abaixo."}</p>}
 
       {tripsError ? null : !trips || trips.length === 0 ? (
         <p className="rounded-card border border-dashed border-graphite-200 p-6 text-center text-sm text-graphite-600">
           {generationError ? "Aguardando atualização das corridas." : "Você não tem viagens programadas para hoje. Confira Minhas rotas ou peça ao administrador para conferir os vínculos e a escala."}
         </p>
+      ) : !nextTrip ? (
+        <section className="rounded-2xl border border-teal-200 bg-teal-50 p-6 text-center">
+          <p className="text-lg font-semibold text-teal-900">Todas as corridas de hoje foram concluídas.</p>
+          <p className="mt-2 text-sm text-teal-800">Você registrou {orderedTrips.filter(trip=>trip.status === "completed").length} corrida(s) concluída(s).</p>
+        </section>
       ) : (
-        <ul className="space-y-3">
-          {orderedTrips.map((trip: any) => (
-            <li key={trip.id}>
-              <Link
-                href={`/driver/trip/${trip.id}`}
-                className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-white p-5 active:bg-mist-50 ${trip.id === nextTrip?.id ? "border-teal-500 ring-1 ring-teal-500" : "border-graphite-200"}`}
-              >
-                <div className="flex w-full items-center justify-between gap-3"><p className="text-2xl font-semibold text-graphite-950">{tripScheduleTime(trip)?.slice(0,5) || "Sem horário"}</p>{trip.id === nextTrip?.id && <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800">{trip.status === "in_progress" ? "Continuar agora" : "Próxima corrida"}</span>}</div>
-                <div className="flex items-center gap-3">
-                  {trip.contracts?.company_logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={trip.contracts.company_logo_url}
-                      alt={trip.contracts.company_name}
-                      className="h-10 w-10 shrink-0 rounded-card border border-graphite-200 bg-white object-contain"
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-mist-200 text-xs text-graphite-600">
-                      {trip.contracts?.company_name?.slice(0, 2).toUpperCase() ?? "—"}
-                    </div>
-                  )}
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <PeriodBadge period={trip.period} />
-                      <p className="font-medium text-graphite-900">{trip.routes?.name}</p>
-                    </div>
-                    <p className="text-sm text-graphite-600">{trip.contracts?.company_name}</p>
-                    <p className="mt-1 text-sm text-graphite-700">{trip.period === "ida" ? "Entrada na empresa" : "Saída da empresa"}: {tripScheduleTime(trip)?.slice(0,5) || "Peça ao administrador para cadastrar o horário"}</p>
-                    <p className="mt-1 text-sm text-graphite-600">{(trip.trip_stops || []).map((s:{employee_name:string|null})=>s.employee_name || "Passageira").join(", ")}</p>
-                    {trip.contracts?.work_site_name && (
-                      <p className="text-xs text-amber-600">
-                        Destino: {trip.contracts.work_site_name}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-2"><StatusBadge status={trip.status} /><p className="text-xs text-graphite-600">{trip.trip_stops?.length ?? 0} passageira(s)</p></div>
-                <div className="flex w-full items-center justify-between border-t border-graphite-200 pt-3 text-sm"><span className="text-graphite-600">{(trip.trip_stops ?? []).filter((s: {status:string;dropped_off_at:string|null})=>s.status === "boarded" && !!s.dropped_off_at).length} entrega(s) confirmada(s)</span><span className="font-semibold text-teal-700">{trip.status === "in_progress" ? "Continuar viagem" : trip.status === "planned" ? "Ver paradas" : "Ver registros"} →</span></div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <section className="rounded-2xl border border-teal-500 bg-white p-5 shadow-sm ring-1 ring-teal-500">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">{nextTrip.status === "in_progress" ? "Faça esta corrida agora" : "Próxima da sua agenda"}</p>
+              <p className="mt-1 text-4xl font-semibold tracking-tight text-graphite-950">{tripScheduleTime(nextTrip)?.slice(0,5) || "Sem horário"}</p>
+            </div>
+            <div className="flex flex-col items-end gap-2"><PeriodBadge period={nextTrip.period} /><StatusBadge status={nextTrip.status} /></div>
+          </div>
+          <div className="mt-5 flex items-center gap-3">
+            {nextTrip.contracts?.company_logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={nextTrip.contracts.company_logo_url} alt={nextTrip.contracts.company_name} className="h-11 w-11 shrink-0 rounded-card border border-graphite-200 bg-white object-contain" />
+            ) : (
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-card bg-mist-200 text-xs text-graphite-600">{nextTrip.contracts?.company_name?.slice(0,2).toUpperCase() ?? "—"}</div>
+            )}
+            <div>
+              <p className="font-semibold text-graphite-950">{nextTrip.routes?.name}</p>
+              <p className="text-sm text-graphite-600">{nextTrip.contracts?.company_name}</p>
+            </div>
+          </div>
+          <div className="mt-5 rounded-xl bg-mist-50 p-4 text-sm text-graphite-700">
+            <p><span className="font-semibold">{nextTrip.period === "ida" ? "Entrada na empresa" : "Saída da empresa"}:</span> {tripScheduleTime(nextTrip)?.slice(0,5) || "Horário ainda não cadastrado"}</p>
+            <p className="mt-1">{nextTrip.trip_stops?.length ?? 0} passageira(s) nesta corrida</p>
+            {nextTrip.contracts?.work_site_name && <p className="mt-1 text-amber-700">Destino: {nextTrip.contracts.work_site_name}</p>}
+          </div>
+          {sameTimeTrips > 0 && <p role="alert" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Há mais {sameTimeTrips} corrida(s) atribuída(s) neste mesmo horário. Esta é a primeira da sequência.</p>}
+          <Link href={`/driver/trip/${nextTrip.id}`} className="mt-5 flex min-h-12 items-center justify-center rounded-xl bg-teal-700 px-4 py-3 text-center font-semibold text-white active:bg-teal-800">
+            {nextTrip.status === "in_progress" ? "Continuar corrida" : "Abrir e iniciar corrida"} →
+          </Link>
+          {laterTrips > 0 && <p className="mt-4 text-center text-xs text-graphite-600">Ao concluir esta corrida, a próxima aparecerá aqui automaticamente.</p>}
+        </section>
       )}
     </div>
   );

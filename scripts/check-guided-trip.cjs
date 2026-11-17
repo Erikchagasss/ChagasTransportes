@@ -1,6 +1,6 @@
 const fs=require('fs'),ts=require('typescript'),Module=require('module'),assert=require('node:assert/strict');
 const m=new Module('guided-trip');m._compile(ts.transpileModule(fs.readFileSync('lib/guided-trip.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,'guided-trip.js');
-const {nextGuidedStep,tripProgress,addressNavigation,orderedDailyTrips,orderedStops,tripScheduleTime,timeValue}=m.exports;
+const {nextGuidedStep,tripProgress,addressNavigation,orderedDailyTrips,orderedStops,tripScheduleTime,timeValue,nextActionableTrip}=m.exports;
 const base={id:'a',status:'pending',employee_name:'Ana',employee_phone:null,pickup_order:1,pickup_address:'Casa A',dropoff_address:'Empresa',arrived_at:null,boarded_at:null,dropoff_arrived_at:null,dropped_off_at:null,scheduled_start:'06:00',scheduled_end:'16:00',notes:''};
 const b={...base,id:'b',employee_name:'Bia',pickup_order:2,pickup_address:'Casa B'};
 let step=nextGuidedStep([b,base],'ida');assert.equal(step.stops[0].id,'a');assert.equal(step.kind,'pickup');assert.equal(step.arrived,false);
@@ -36,6 +36,9 @@ const daily=[
 assert.deepEqual(orderedDailyTrips(daily).map(t=>t.id),['entry7','entry15','exit16','entry23','unknown']);
 assert.equal(orderedDailyTrips([{...daily[0],status:'in_progress'},...daily.slice(1)])[0].id,'entry23');
 assert.equal(orderedDailyTrips([{...daily[3],status:'completed'},daily[0]])[0].id,'entry23');
+assert.equal(nextActionableTrip([{...daily[0],status:'completed'},daily[1],daily[2],daily[3]]).id,'entry7');
+assert.equal(nextActionableTrip([{...daily[0],status:'in_progress'},daily[1],daily[3]]).id,'entry23');
+assert.equal(nextActionableTrip(daily.map(t=>({...t,status:'completed'}))),null);
 assert.equal(tripScheduleTime({id:'x',period:'volta',status:'planned',trip_date:'2026-11-16',trip_stops:[{scheduled_start:'06:00',scheduled_end:'18:00'},{scheduled_start:'07:00',scheduled_end:'16:00'}]}),'16:00');
 assert.equal(timeValue('99:99'),Infinity);
 console.log('PASS: ordem cronológica entre ida/volta, paradas por turno, entrega antes da busca posterior e horários ausentes ao final.');

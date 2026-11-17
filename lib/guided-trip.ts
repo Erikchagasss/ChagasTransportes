@@ -48,6 +48,21 @@ export function orderedDailyTrips<T extends TimetableTrip>(trips:T[]):T[] {
   });
 }
 
+/**
+ * Seleciona a única corrida que deve ocupar a tela inicial do motorista.
+ * Uma corrida já iniciada sempre vem antes da próxima planejada; entre as
+ * corridas da mesma situação, vence o menor horário de entrada/saída.
+ */
+export function nextActionableTrip<T extends TimetableTrip>(trips:T[]):T|null {
+  const chronological=(items:T[])=>[...items].sort((a,b)=>{
+    const first=timeValue(tripScheduleTime(a)),second=timeValue(tripScheduleTime(b));
+    return a.trip_date.localeCompare(b.trip_date) ||
+      (first === second ? 0 : first < second ? -1 : 1) || a.period.localeCompare(b.period) || a.id.localeCompare(b.id);
+  });
+  const active=chronological(trips.filter(trip=>trip.status === "in_progress"));
+  return active[0] || chronological(trips.filter(trip=>trip.status === "planned"))[0] || null;
+}
+
 /** A ida coleta nas casas; a volta embarca por local e entrega casa a casa. */
 export function nextGuidedStep(stops: GuidedStop[], period: string): GuidedStep | null {
   const ordered = orderedStops(stops,period);
