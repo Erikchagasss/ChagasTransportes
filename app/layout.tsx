@@ -5,6 +5,9 @@ export const metadata: Metadata = {
   title: "Fretado - Gestão de Transporte",
   description: "Contratos, rotas e corridas de fretado de funcionárias",
   manifest: "/manifest.json",
+  icons: {
+    apple: [{ url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

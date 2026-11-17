@@ -4,6 +4,31 @@ PWA para gestão de contratos, rotas e corridas de fretado de funcionárias.
 Admin vê tudo; motorista vê só o que está vinculado a ele (isolado via RLS
 no Supabase — ver `schema_fretado.sql`).
 
+## Aplicativos móveis (Capacitor)
+
+Os projetos `android/` e `ios/` são a primeira camada nativa do app. O
+`capacitor.config.ts` usa o identificador inicial `com.chagas.transporte` e
+carrega a versão publicada em `https://chagas-transporte.vercel.app`. O app
+web atual depende das rotas de servidor do Next.js e da autenticação Supabase;
+por isso, esta etapa mantém o serviço web como backend e precisa de internet.
+`mobile-shell/` fornece a tela local de contingência quando não há conexão.
+
+Depois de alterar configuração ou plugins nativos, sincronize com
+`npm run cap:sync`. Abra o projeto Android com `npm run cap:open:android` e o
+iOS com `npm run cap:open:ios`. O identificador do pacote deve ser confirmado
+antes da distribuição; também faltam os ícones finais da loja.
+
+### IPA instalável para teste sem Mac próprio
+
+O workflow manual `.github/workflows/build-ios-ipa.yml` usa um runner macOS do
+GitHub Actions para compilar um IPA sem assinatura de distribuição. No
+Windows, o AltServer pode assinar e instalar esse IPA no iPhone usando uma
+conta Apple gratuita. É um fluxo de teste pessoal: apps assinados com conta
+gratuita expiram em 7 dias e precisam ser reinstalados/renovados; o AltStore
+Classic também limita a 3 apps sideloaded por aparelho. Verifique a franquia e
+um limite de gastos do GitHub Actions antes de executar o workflow. A
+publicação na App Store/TestFlight exige Apple Developer Program.
+
 ## Setup
 
 ### Agenda por entrada/saída e turnos noturnos (migração v12)
